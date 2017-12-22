@@ -11,6 +11,14 @@ Understand matrix factorization and singular value decomposition (SVD), and how 
 2. Use to discover latent features underlying the interactions between two different kinds of entities.
 3. Use to predict ratings (sparse values, or zeros `0` in matrices). Most of the time, the matrix will be sparse because not all users will rate an item. With matrix factorization, we can _predict_ the rating that the user will give on items they have not rated yet.
 
+## Input
+
+Sample input for the algorithm:
+
+## Output
+
+Sample output for the algorithm:
+
 ## TODO
 
 1. Run it parallel
