@@ -32,3 +32,46 @@ Sample output for the algorithm:
 ## Reference
 
 1. Mining of Massive Datasets. This book is available for free online and contains in-depth chapters on Singular Value Decomposition.
+
+# Matrix factorization
+
+what
+- is matrix factorization
+- is the input 
+- is the output
+why
+- use matrix factorization
+when 
+- to use it
+- not to use it
+- does it work/does it not work
+who
+how
+- to calculate the matrix factorization
+- to use it for recommendation
+
+Factorizing a matrix
+- We have a rating matrix R with n rows and m columns. 
+- The columns is for user
+- The rows is for items
+- So we have a n x m matrix (read n by m).
+- We can decompose R into U x V
+- U will be n x d matrix
+- V will be d x m matrix
+- U is the user-feature matrix
+- V is the item-feature matrix
+
+Singular value decomposition (SVD) is an algorithm commonly used for matrix factorization. 
+We can use it to find items to recommend to users.
+
+M - A matrix you want to decompose; in your case, it’s the rating matrix
+U - user feature matrix
+Sigma - weights diagonal
+Vt - item feature matrix
+
+## References
+
+- https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.NMF.html
+- http://www.albertauyeung.com/post/python-matrix-factorization/
+- https://beckernick.github.io/matrix-factorization-recommender/
+- https://lazyprogrammer.me/tutorial-on-collaborative-filtering-and-matrix-factorization-in-python/
