@@ -1,1 +1,10 @@
 .ipynb_checkpoints
+.DS_Store
+*.zip
+ml-100k/
+
+# Remove cache files
+*.cache
+
+# Remove python compiled files
+*.reg

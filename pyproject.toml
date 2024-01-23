@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "matrix-factorization"
+version = "0.1.0"
+description = ""
+authors = ["alextanhongpin <alextan220990@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.11"
+vowpalwabbit = "^9.9.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
