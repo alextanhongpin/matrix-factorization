@@ -9,6 +9,10 @@ readme = "README.md"
 python = ">=3.10,<3.11"
 vowpalwabbit = "^9.9.0"
 numpy = "^1.26.3"
+watermark = "^2.4.3"
+pandas = "^2.2.0"
+scikit-learn = "^1.4.0"
+matplotlib = "^3.8.2"
 
 
 [build-system]
