@@ -13,3 +13,5 @@ ml-100k/
 p_out
 
 __pycache__/
+
+.mypy_cache/
