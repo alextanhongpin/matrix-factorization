@@ -32,5 +32,5 @@ names = [
 ]
 
 
-def load_movie():
+def load_movies():
     return pd.read_csv(file_path, sep="|", names=names, encoding="iso-8859-1")
