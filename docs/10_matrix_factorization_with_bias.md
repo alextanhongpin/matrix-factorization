@@ -73,10 +73,11 @@ avg_rating = R[R.nonzero()].mean()
 lr = 0.01
 reg_strength = 1e-5
 losses = []
+mask = R > 0
 
 # Define the loss function
-def sse_loss():
-    R_hat = (avg_rating + user_bias[:, None] + item_bias[None, :]) * (R > 0)
+def sse_loss(avg_rating, user_bias, item_bias):
+    R_hat = avg_rating + user_bias[:, None] + item_bias[None, :]
 
     loss = np.sum(np.square(R - R_hat)) + reg_strength * (
         np.sum(np.square(user_bias)) + np.sum(np.square(item_bias))
@@ -85,7 +86,7 @@ def sse_loss():
 
 
 # Run the optimization
-for t in range(500):
+for t in range(1500):
     for u, i in zip(*R.nonzero()):
         b_u = user_bias[u]
         b_i = item_bias[i]
@@ -95,7 +96,7 @@ for t in range(500):
         # Update parameters
         user_bias[u] += lr * (error - reg_strength * b_u)
         item_bias[i] += lr * (error - reg_strength * b_i)
-    losses.append(sse_loss())
+    losses.append(sse_loss(avg_rating, user_bias, item_bias))
 ```
 
 
@@ -106,7 +107,7 @@ plt.plot(losses)
 
 
 
-    [<matplotlib.lines.Line2D at 0x1138d4550>]
+    [<matplotlib.lines.Line2D at 0x107d146a0>]
 
 
 
@@ -135,27 +136,27 @@ print(R)
 
 ```python
 print("Reconstructed ratings:")
-R_hat = avg_rating + user_bias[None, :] + item_bias[:, None]
+R_hat = avg_rating + user_bias[:, None] + item_bias[None, :]
 print(np.round(R_hat, 2))
 ```
 
     Reconstructed ratings:
-    [[3.39 2.39 2.76 2.4  3.14]
-     [1.96 0.96 1.32 0.97 1.7 ]
-     [5.23 4.23 4.59 4.24 4.98]
-     [3.6  2.59 2.96 2.61 3.34]]
+    [[3.39 1.97 5.29 3.6 ]
+     [2.39 0.97 4.29 2.6 ]
+     [2.75 1.33 4.65 2.96]
+     [2.41 0.98 4.3  2.62]
+     [3.11 1.69 5.01 3.32]]
 
 
 
 ```python
-user_bias, item_bias
+sse_loss(avg_rating, user_bias, item_bias)
 ```
 
 
 
 
-    (array([ 0.66653365, -0.33668706,  0.02688787, -0.32327512,  0.41037416]),
-     array([-0.04111797, -1.47561217,  1.79879217,  0.16192943]))
+    125.78310322261088
 
 
 
@@ -198,7 +199,6 @@ known_ratings = np.sum(mask)
 # Define the loss function
 def sse_loss(U, V, user_bias, item_bias, avg_rating, R):
     R_hat = U @ V.T + user_bias[:, None] + item_bias[None, :] + avg_rating
-    R_hat *= mask
 
     # Squared sum error (SSE) of known ratings.
     loss = np.sum(np.square(R - R_hat))
@@ -246,7 +246,7 @@ plt.plot(losses)
 
 
 
-    [<matplotlib.lines.Line2D at 0x113999840>]
+    [<matplotlib.lines.Line2D at 0x107db5e40>]
 
 
 
@@ -280,11 +280,11 @@ print(np.round(R_hat, 2))
 ```
 
     Reconstructed ratings:
-    [[ 5.    3.    2.91  1.  ]
-     [ 4.   -3.07 -3.69  1.  ]
-     [ 1.    1.    4.48  5.  ]
-     [ 1.   -0.36  1.09  4.  ]
-     [ 1.18  1.    5.    4.  ]]
+    [[ 5.    3.    2.28  1.  ]
+     [ 4.    3.09 -0.63  1.  ]
+     [ 1.    1.   -1.06  5.  ]
+     [ 1.   -1.41  3.72  4.  ]
+     [ 7.7   1.    5.    4.  ]]
 
 
 
@@ -295,7 +295,7 @@ sse_loss(U, V, user_bias, item_bias, avg_rating, R)
 
 
 
-    0.0010407735870494564
+    91.39996484584424
 
 
 
@@ -313,11 +313,11 @@ np.maximum(np.round(R, 1), 0)
 
 
 
-    array([[5. , 3. , 2.9, 1. ],
-           [4. , 0. , 0. , 1. ],
-           [1. , 1. , 4.5, 5. ],
-           [1. , 0. , 1.1, 4. ],
-           [1.2, 1. , 5. , 4. ]], dtype=float32)
+    array([[5. , 3. , 2.3, 1. ],
+           [4. , 3.1, 0. , 1. ],
+           [1. , 1. , 0. , 5. ],
+           [1. , 0. , 3.7, 4. ],
+           [7.7, 1. , 5. , 4. ]], dtype=float32)
 
 
 
@@ -396,15 +396,15 @@ for t in range(T):
         print(t, tf.reduce_mean(loss).numpy())
 ```
 
-    2024-01-30 03:51:57.592935: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+    2024-01-30 04:25:11.482965: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
     To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
 
 
-    0 38.574196
-    100 0.31343275
-    200 0.01619082
-    300 0.0006182658
-    400 2.1748392e-05
+    0 38.387325
+    100 0.22800846
+    200 0.015489683
+    300 0.001032044
+    400 6.764551e-05
 
 
 
@@ -415,14 +415,8 @@ plt.plot(losses)
 
 
 
-    [<matplotlib.lines.Line2D at 0x1329997b0>]
+    [<matplotlib.lines.Line2D at 0x126d53d60>]
 
-
-
-
-    
-![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_24_1.png)
-    
 
 
 
@@ -438,17 +432,6 @@ R = R.numpy()
 R
 ```
 
-
-
-
-    array([[5., 3., 0., 1.],
-           [4., 0., 0., 1.],
-           [1., 1., 0., 5.],
-           [1., 0., 0., 4.],
-           [0., 1., 5., 4.]], dtype=float32)
-
-
-
 ### Reconstructed Ratings
 
 
@@ -457,33 +440,11 @@ np.round(R_hat, 2)
 ```
 
 
-
-
-    array([[5.  , 3.  , 4.85, 1.  ],
-           [4.  , 2.29, 4.36, 1.  ],
-           [1.  , 1.  , 5.13, 5.  ],
-           [1.  , 0.69, 4.63, 4.  ],
-           [1.6 , 1.  , 5.  , 4.  ]], dtype=float32)
-
-
-
-
 ```python
 mask = R == 0
 R[mask] = R_hat[mask]
 np.round(R, 1)
 ```
-
-
-
-
-    array([[5. , 3. , 4.8, 1. ],
-           [4. , 2.3, 4.4, 1. ],
-           [1. , 1. , 5.1, 5. ],
-           [1. , 0.7, 4.6, 4. ],
-           [1.6, 1. , 5. , 4. ]], dtype=float32)
-
-
 
 ### Output
 
@@ -492,17 +453,6 @@ np.round(R, 1)
 # We still have issue with negative values, and some values goes beyond 5.
 np.round(np.clip(R, 0, 5), 1)
 ```
-
-
-
-
-    array([[5. , 3. , 4.8, 1. ],
-           [4. , 2.3, 4.4, 1. ],
-           [1. , 1. , 5. , 5. ],
-           [1. , 0.7, 4.6, 4. ],
-           [1.6, 1. , 5. , 4. ]], dtype=float32)
-
-
 
 ## Keras, skipping ratings
 
@@ -575,30 +525,10 @@ for epoch in range(epochs):
     losses.append(loss.numpy())
 ```
 
-    Epoch 0 Loss 4.8182354
-    Epoch 100 Loss 0.38364327
-    Epoch 200 Loss 0.037215076
-    Epoch 300 Loss 0.00077601854
-    Epoch 400 Loss 1.9329402e-06
-
-
 
 ```python
 plt.plot(losses)
 ```
-
-
-
-
-    [<matplotlib.lines.Line2D at 0x1329f2320>]
-
-
-
-
-    
-![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_34_1.png)
-    
-
 
 ### Reconstructed Ratings
 
@@ -612,17 +542,6 @@ R_hat = (
 )
 np.round(R_hat, 2)
 ```
-
-
-
-
-    array([[5.  , 3.  , 9.05, 1.  ],
-           [4.  , 4.74, 7.58, 1.  ],
-           [1.  , 1.  , 2.06, 5.  ],
-           [1.  , 2.71, 2.36, 4.  ],
-           [2.84, 1.  , 5.  , 4.  ]], dtype=float32)
-
-
 
 ## SGD
 
@@ -677,30 +596,10 @@ for epoch in range(epochs):
     losses.append(mse_loss)
 ```
 
-    Epoch 0 MSE Loss 6.1185182462121555
-    Epoch 100 MSE Loss 3.1841804171769805
-    Epoch 200 MSE Loss 3.136495989963544
-    Epoch 300 MSE Loss 3.1315523532306746
-    Epoch 400 MSE Loss 3.130803120373311
-
-
 
 ```python
 plt.plot(losses)
 ```
-
-
-
-
-    [<matplotlib.lines.Line2D at 0x132a79f90>]
-
-
-
-
-    
-![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_39_1.png)
-    
-
 
 ### Reconstructed Ratings
 
@@ -708,17 +607,6 @@ plt.plot(losses)
 ```python
 np.round(avg_rating + np.dot(U, V.T) + user_bias[:, None] + item_bias[None, :], 2)
 ```
-
-
-
-
-    array([[5.  , 3.  , 3.47, 1.  ],
-           [4.  , 1.82, 3.27, 1.  ],
-           [1.  , 1.  , 1.18, 5.  ],
-           [1.  , 1.17, 0.4 , 4.  ],
-           [3.42, 1.  , 5.  , 4.  ]])
-
-
 
 
 ```python
