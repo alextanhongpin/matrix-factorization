@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 ```
 
-    /var/folders/7m/74_ct3hx33d878n626w1wxyc0000gn/T/ipykernel_69303/1662815981.py:2: DeprecationWarning: 
+    /var/folders/7m/74_ct3hx33d878n626w1wxyc0000gn/T/ipykernel_70647/1662815981.py:2: DeprecationWarning: 
     Pyarrow will become a required dependency of pandas in the next major release of pandas (pandas 3.0),
     (to allow more performant data types, such as the Arrow string type, and better interoperability with other libraries)
     but was not found to be installed on your system.
@@ -410,7 +410,7 @@ df.T.corr()
 ```python
 def custom_pearson_correlation(m, n):
     # Skip zeros (unrated).
-    mask = list(set(np.where(m != 0)[0]) & set(np.where(n != 0)[0]))
+    mask = np.logical_and(m > 0, n > 0)
 
     m = m[mask]
     n = n[mask]
@@ -525,6 +525,24 @@ df.T.corr(custom_pearson_correlation)
   </tbody>
 </table>
 </div>
+
+
+
+Below we observe the difference in the score if we exclude the zero-ratings (not rated) movies:
+
+
+```python
+all_ratings = df.T["Lisa Rose"].corr(df.T["Michael Phillips"])
+rated_only = df.T["Lisa Rose"].corr(
+    df.T["Michael Phillips"], custom_pearson_correlation
+)
+all_ratings, rated_only
+```
+
+
+
+
+    (0.5107539184552492, 0.40451991747794525)
 
 
 
@@ -802,15 +820,3 @@ sorted(
     reverse=True,
 )
 ```
-
-
-
-
-    [('Snakes on a Plane', 0.8888888888888888),
-     ('Superman Returns', 0.8888888888888888),
-     ('The Night Listener', 0.7777777777777778),
-     ('Lady in the Water', 0.4444444444444444),
-     ('Just My Luck', 0.3333333333333333),
-     ('You, Me and Dupree', 0.3333333333333333)]
-
-

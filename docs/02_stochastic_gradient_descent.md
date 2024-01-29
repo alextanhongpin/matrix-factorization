@@ -223,31 +223,45 @@ minimum, C(minimum)
 import tensorflow as tf
 ```
 
+    2024-01-30 01:43:50.622823: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+    To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+
+
+Keras provides a way to calculate the derivates of the cost function through automatic differentiation.
+This is convenient, as we do not need to derive it manually.
+
 
 ```python
-sgd = tf.keras.optimizers.SGD(learning_rate=0.1, momentum=0.9)
-var = tf.Variable(0.9)
+sgd = tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9)
+x = tf.Variable(0.9)
 
-loss = lambda: 4 * tf.pow(var, 3) - 10 * var - 3
+
 for i in range(50):
-    val0 = var.value()
-    sgd.minimize(loss, var_list=[var])
-    val1 = var.value()
+    with tf.GradientTape() as tape:
+        y = tf.pow(x, 4) - 5 * tf.pow(x, 2) - 3 * var
+    dy_dx = tape.gradient(y, [x])
+    sgd.apply_gradients(zip(dy_dx, [x]))
+
     if i % 10 == 0:
-        print("loss:", (val0 - val1).numpy())
-var.numpy(), loss().numpy()
+        print("loss:", dy_dx[0].numpy(), x.numpy())
+x.numpy(), dy_dx[0].numpy()
 ```
 
-    loss: -0.028000057
-    loss: -0.0020021796
-    loss: 0.009803176
-    loss: 0.00033771992
-    loss: -0.0034327507
+    loss: -6.0840006 0.96084
+    loss: 2.4022198 1.545779
+    loss: 2.7857609 1.745681
+    loss: -1.7118111 1.5297205
+    loss: -0.7434063 1.5248744
 
 
 
 
 
-    (0.9120082, -9.085798)
+    (1.6163998, 0.8602085)
 
 
+
+
+```python
+
+```

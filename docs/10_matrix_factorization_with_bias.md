@@ -6,6 +6,44 @@ Similar to 09_matrix_factorization.py, but with user and item bias (TODO: Add re
 - https://github.com/GabrielSandoval/matrix_factorization/blob/master/lib/mf.py
 - https://d2l.ai/chapter_recommender-systems/mf.html
 - https://medium.com/@maxbrenner-ai/matrix-factorization-for-collaborative-filtering-linear-to-non-linear-models-in-python-5cf54363a03c
+- https://github.com/NicolasHug/Surprise/blob/master/surprise/prediction_algorithms/matrix_factorization.pyx
+
+Consider the following matrix of ratings. The rows are the users, while the columns are the items, and the values are the rating 1-5.
+In the first row, we see that user rated 5 for the item.
+
+The average rating for this matrix is 2.8 stars (after rounding).
+
+
+```python
+import numpy as np
+
+ratings = np.array(
+    [[5, 3, 0, 1], [4, 0, 0, 1], [1, 1, 0, 5], [1, 0, 0, 4], [0, 1, 5, 4]], dtype=float
+)
+avg_rating = np.mean(ratings[ratings.nonzero()])
+np.round(avg_rating, 1)
+```
+
+
+
+
+    2.8
+
+
+
+We want to learn the bias of the user and the items. In the context of movie recommendation, the user bias can be a user that is picky about a user, and hence gives a lower rating (-0.5) than usual. However, the movie seems to have a of fans giving high rating (1.7).
+
+The final rating after taking into consideration the initial average rating, the user bias and the item bias is:
+
+```
+final_rating = 2.8 - 0.5 + 1.7
+             = 4.0
+```
+
+
+## Baseline Model
+
+In the baseline model, we cover only the user and item biases.
 
 
 ```python
@@ -15,8 +53,6 @@ import numpy as np
 
 
 ```python
-import numpy as np
-
 # Assume we have some ratings matrix R
 R = np.array(
     [[5, 3, 0, 1], [4, 0, 0, 1], [1, 1, 0, 5], [1, 0, 0, 4], [0, 1, 5, 4]],
@@ -25,15 +61,12 @@ R = np.array(
 
 # Initialize user and item embedding matrices
 num_users, num_items = R.shape
-embedding_dim = 10
-U = np.random.normal(size=(num_users, embedding_dim))
-V = np.random.normal(size=(num_items, embedding_dim))
 
 # Initialize user and item bias vectors
 user_bias = np.zeros(num_users)
 item_bias = np.zeros(num_items)
 
-# Initialize global bias
+# Initialize average rating.
 avg_rating = R[R.nonzero()].mean()
 
 # Define the learning rate and regularization strength
@@ -41,57 +74,29 @@ lr = 0.01
 reg_strength = 1e-5
 losses = []
 
-mask = R > 0
-known_ratings = np.sum(mask)
-
 # Define the loss function
-def mse_loss(U, V, user_bias, item_bias, avg_rating, R):
-    prediction = U @ V.T + user_bias[:, None] + item_bias[None, :] + avg_rating
+def sse_loss():
+    R_hat = (avg_rating + user_bias[:, None] + item_bias[None, :]) * (R > 0)
 
-    loss = np.sum(np.square(R - prediction) * mask) / known_ratings
-    # Add regularization
-    loss += reg_strength * (
-        np.sum(U ** 2)
-        + np.sum(V ** 2)
-        + np.sum(user_bias ** 2)
-        + np.sum(item_bias ** 2)
+    loss = np.sum(np.square(R - R_hat)) + reg_strength * (
+        np.sum(np.square(user_bias)) + np.sum(np.square(item_bias))
     )
     return loss
 
 
 # Run the optimization
-for i in range(500):
-    R_hat = U @ V.T + user_bias[:, None] + item_bias[None, :] + avg_rating
-    error = (R - R_hat) * mask
+for t in range(500):
+    for u, i in zip(*R.nonzero()):
+        b_u = user_bias[u]
+        b_i = item_bias[i]
+        R_hat = avg_rating + b_u + b_i
+        error = R[u, i] - R_hat
 
-    # Compute gradients
-    grad_U = -2 * error @ V / known_ratings + 2 * reg_strength * U
-    grad_V = -2 * error.T @ U / known_ratings + 2 * reg_strength * V
-    grad_user_bias = (
-        -2 * np.sum(error, axis=1) / known_ratings + 2 * reg_strength * user_bias
-    )
-    grad_item_bias = (
-        -2 * np.sum(error, axis=0) / known_ratings + 2 * reg_strength * item_bias
-    )
-
-    # Update parameters
-    U -= lr * grad_U
-    V -= lr * grad_V
-    user_bias -= lr * grad_user_bias
-    item_bias -= lr * grad_item_bias
-
-    loss = mse_loss(U, V, user_bias, item_bias, avg_rating, R)
-    if i % 100 == 0:
-        print("Iteration", i, "Loss", loss)
-    losses.append(loss)
+        # Update parameters
+        user_bias[u] += lr * (error - reg_strength * b_u)
+        item_bias[i] += lr * (error - reg_strength * b_i)
+    losses.append(sse_loss())
 ```
-
-    Iteration 0 Loss 9.886281612756491
-    Iteration 100 Loss 0.022797585125228604
-    Iteration 200 Loss 0.0008844487159315772
-    Iteration 300 Loss 0.0007834422817237784
-    Iteration 400 Loss 0.0007825208701494093
-
 
 
 ```python
@@ -101,13 +106,13 @@ plt.plot(losses)
 
 
 
-    [<matplotlib.lines.Line2D at 0x132555b40>]
+    [<matplotlib.lines.Line2D at 0x1138d4550>]
 
 
 
 
     
-![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_3_1.png)
+![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_7_1.png)
     
 
 
@@ -130,21 +135,168 @@ print(R)
 
 ```python
 print("Reconstructed ratings:")
-R_hat = (
-    np.round(U @ V.T, 2)
-    + user_bias[:, np.newaxis]
-    + item_bias[np.newaxis, :]
-    + avg_rating
-)
+R_hat = avg_rating + user_bias[None, :] + item_bias[:, None]
 print(np.round(R_hat, 2))
 ```
 
     Reconstructed ratings:
-    [[ 5.    3.   -0.14  1.  ]
-     [ 4.    1.95  5.5   1.  ]
-     [ 1.    1.   -0.64  5.  ]
-     [ 1.    6.8   3.49  4.  ]
-     [ 4.04  1.    5.    4.  ]]
+    [[3.39 2.39 2.76 2.4  3.14]
+     [1.96 0.96 1.32 0.97 1.7 ]
+     [5.23 4.23 4.59 4.24 4.98]
+     [3.6  2.59 2.96 2.61 3.34]]
+
+
+
+```python
+user_bias, item_bias
+```
+
+
+
+
+    (array([ 0.66653365, -0.33668706,  0.02688787, -0.32327512,  0.41037416]),
+     array([-0.04111797, -1.47561217,  1.79879217,  0.16192943]))
+
+
+
+## SVD
+
+See formula here:
+
+https://github.com/recommenders-team/recommenders/blob/main/examples/02_model_collaborative_filtering/surprise_svd_deep_dive.ipynb
+
+
+```python
+# Assume we have some ratings matrix R
+R = np.array(
+    [[5, 3, 0, 1], [4, 0, 0, 1], [1, 1, 0, 5], [1, 0, 0, 4], [0, 1, 5, 4]],
+    dtype=np.float32,
+)
+
+# Initialize user and item embedding matrices
+num_users, num_items = R.shape
+embedding_dim = 10
+U = np.random.normal(size=(num_users, embedding_dim))
+V = np.random.normal(size=(num_items, embedding_dim))
+
+# Initialize user and item bias vectors
+user_bias = np.zeros(num_users)
+item_bias = np.zeros(num_items)
+
+# Initialize average rating.
+avg_rating = R[R.nonzero()].mean()
+
+# Define the learning rate and regularization strength
+lr = 0.01
+reg_strength = 1e-5
+losses = []
+
+mask = R > 0
+# We take into considerating the known ratings only when calculating errors.
+known_ratings = np.sum(mask)
+
+# Define the loss function
+def sse_loss(U, V, user_bias, item_bias, avg_rating, R):
+    R_hat = U @ V.T + user_bias[:, None] + item_bias[None, :] + avg_rating
+    R_hat *= mask
+
+    # Squared sum error (SSE) of known ratings.
+    loss = np.sum(np.square(R - R_hat))
+    # Add regularization
+    loss += reg_strength * (
+        np.sum(U ** 2)
+        + np.sum(V ** 2)
+        + np.sum(user_bias ** 2)
+        + np.sum(item_bias ** 2)
+    )
+    return loss
+
+
+# Run the optimization
+for t in range(500):
+    for u, i in zip(*R.nonzero()):
+        b_u = user_bias[u]
+        b_i = item_bias[i]
+        R_hat = U[u, :] @ V[i, :].T + b_u + b_i + avg_rating
+        error = R[u, i] - R_hat
+
+        # Compute gradients
+        grad_U = error * V[i, :] - reg_strength * U[u, :]
+        grad_V = error * U[u, :] - reg_strength * V[i, :]
+        grad_user_bias = error - reg_strength * b_u
+        grad_item_bias = error - reg_strength * b_i
+
+        # Update parameters
+        U[u, :] += lr * grad_U
+        V[i, :] += lr * grad_V
+        user_bias[u] += lr * grad_user_bias
+        item_bias[i] += lr * grad_item_bias
+
+    loss = sse_loss(U, V, user_bias, item_bias, avg_rating, R)
+    if i % 100 == 0:
+        print("Iteration", i, "Loss", loss)
+    losses.append(loss)
+```
+
+
+```python
+plt.plot(losses)
+```
+
+
+
+
+    [<matplotlib.lines.Line2D at 0x113999840>]
+
+
+
+
+    
+![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_14_1.png)
+    
+
+
+
+```python
+print("Original ratings:")
+print(R)
+```
+
+    Original ratings:
+    [[5. 3. 0. 1.]
+     [4. 0. 0. 1.]
+     [1. 1. 0. 5.]
+     [1. 0. 0. 4.]
+     [0. 1. 5. 4.]]
+
+
+### Reconstructed Ratings
+
+
+```python
+print("Reconstructed ratings:")
+R_hat = U @ V.T + user_bias[:, None] + item_bias[None, :] + avg_rating
+print(np.round(R_hat, 2))
+```
+
+    Reconstructed ratings:
+    [[ 5.    3.    2.91  1.  ]
+     [ 4.   -3.07 -3.69  1.  ]
+     [ 1.    1.    4.48  5.  ]
+     [ 1.   -0.36  1.09  4.  ]
+     [ 1.18  1.    5.    4.  ]]
+
+
+
+```python
+sse_loss(U, V, user_bias, item_bias, avg_rating, R)
+```
+
+
+
+
+    0.0010407735870494564
+
 
 
 ### Output
@@ -161,11 +313,11 @@ np.maximum(np.round(R, 1), 0)
 
 
 
-    array([[5. , 3. , 1.6, 1. ],
-           [4. , 1.9, 1.9, 1. ],
-           [1. , 1. , 0. , 5. ],
-           [1. , 0. , 1.6, 4. ],
-           [5.5, 1. , 5. , 4. ]], dtype=float32)
+    array([[5. , 3. , 2.9, 1. ],
+           [4. , 0. , 0. , 1. ],
+           [1. , 1. , 4.5, 5. ],
+           [1. , 0. , 1.1, 4. ],
+           [1.2, 1. , 5. , 4. ]], dtype=float32)
 
 
 
@@ -244,11 +396,15 @@ for t in range(T):
         print(t, tf.reduce_mean(loss).numpy())
 ```
 
-    0 38.38217
-    100 0.032197073
-    200 0.00020707061
-    300 1.6542647e-06
-    400 1.3372642e-08
+    2024-01-30 03:51:57.592935: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+    To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+
+
+    0 38.574196
+    100 0.31343275
+    200 0.01619082
+    300 0.0006182658
+    400 2.1748392e-05
 
 
 
@@ -259,13 +415,13 @@ plt.plot(losses)
 
 
 
-    [<matplotlib.lines.Line2D at 0x1328256f0>]
+    [<matplotlib.lines.Line2D at 0x1329997b0>]
 
 
 
 
     
-![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_12_1.png)
+![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_24_1.png)
     
 
 
@@ -303,11 +459,11 @@ np.round(R_hat, 2)
 
 
 
-    array([[5.  , 3.  , 4.19, 1.  ],
-           [4.  , 2.17, 3.79, 1.  ],
-           [1.  , 1.  , 4.35, 5.  ],
-           [1.  , 0.65, 3.93, 4.  ],
-           [2.15, 1.  , 5.  , 4.  ]], dtype=float32)
+    array([[5.  , 3.  , 4.85, 1.  ],
+           [4.  , 2.29, 4.36, 1.  ],
+           [1.  , 1.  , 5.13, 5.  ],
+           [1.  , 0.69, 4.63, 4.  ],
+           [1.6 , 1.  , 5.  , 4.  ]], dtype=float32)
 
 
 
@@ -321,11 +477,11 @@ np.round(R, 1)
 
 
 
-    array([[5. , 3. , 4.2, 1. ],
-           [4. , 2.2, 3.8, 1. ],
-           [1. , 1. , 4.4, 5. ],
-           [1. , 0.7, 3.9, 4. ],
-           [2.1, 1. , 5. , 4. ]], dtype=float32)
+    array([[5. , 3. , 4.8, 1. ],
+           [4. , 2.3, 4.4, 1. ],
+           [1. , 1. , 5.1, 5. ],
+           [1. , 0.7, 4.6, 4. ],
+           [1.6, 1. , 5. , 4. ]], dtype=float32)
 
 
 
@@ -340,11 +496,11 @@ np.round(np.clip(R, 0, 5), 1)
 
 
 
-    array([[5. , 3. , 4.2, 1. ],
-           [4. , 2.2, 3.8, 1. ],
-           [1. , 1. , 4.4, 5. ],
-           [1. , 0.7, 3.9, 4. ],
-           [2.1, 1. , 5. , 4. ]], dtype=float32)
+    array([[5. , 3. , 4.8, 1. ],
+           [4. , 2.3, 4.4, 1. ],
+           [1. , 1. , 5. , 5. ],
+           [1. , 0.7, 4.6, 4. ],
+           [1.6, 1. , 5. , 4. ]], dtype=float32)
 
 
 
@@ -419,11 +575,11 @@ for epoch in range(epochs):
     losses.append(loss.numpy())
 ```
 
-    Epoch 0 Loss 2.879625
-    Epoch 100 Loss 0.6547214
-    Epoch 200 Loss 0.00706932
-    Epoch 300 Loss 1.2559363e-07
-    Epoch 400 Loss 1.0330198e-12
+    Epoch 0 Loss 4.8182354
+    Epoch 100 Loss 0.38364327
+    Epoch 200 Loss 0.037215076
+    Epoch 300 Loss 0.00077601854
+    Epoch 400 Loss 1.9329402e-06
 
 
 
@@ -434,13 +590,13 @@ plt.plot(losses)
 
 
 
-    [<matplotlib.lines.Line2D at 0x132c38760>]
+    [<matplotlib.lines.Line2D at 0x1329f2320>]
 
 
 
 
     
-![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_22_1.png)
+![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_34_1.png)
     
 
 
@@ -460,11 +616,11 @@ np.round(R_hat, 2)
 
 
 
-    array([[5.  , 3.  , 4.93, 1.  ],
-           [4.  , 1.23, 4.18, 1.  ],
-           [1.  , 1.  , 2.49, 5.  ],
-           [1.  , 1.31, 2.27, 4.  ],
-           [4.21, 1.  , 5.  , 4.  ]], dtype=float32)
+    array([[5.  , 3.  , 9.05, 1.  ],
+           [4.  , 4.74, 7.58, 1.  ],
+           [1.  , 1.  , 2.06, 5.  ],
+           [1.  , 2.71, 2.36, 4.  ],
+           [2.84, 1.  , 5.  , 4.  ]], dtype=float32)
 
 
 
@@ -521,11 +677,11 @@ for epoch in range(epochs):
     losses.append(mse_loss)
 ```
 
-    Epoch 0 MSE Loss 14.821845975216345
-    Epoch 100 MSE Loss 7.505415823913703
-    Epoch 200 MSE Loss 7.527446178756847
-    Epoch 300 MSE Loss 7.525891225916559
-    Epoch 400 MSE Loss 7.526175385010887
+    Epoch 0 MSE Loss 6.1185182462121555
+    Epoch 100 MSE Loss 3.1841804171769805
+    Epoch 200 MSE Loss 3.136495989963544
+    Epoch 300 MSE Loss 3.1315523532306746
+    Epoch 400 MSE Loss 3.130803120373311
 
 
 
@@ -536,13 +692,13 @@ plt.plot(losses)
 
 
 
-    [<matplotlib.lines.Line2D at 0x132cb8160>]
+    [<matplotlib.lines.Line2D at 0x132a79f90>]
 
 
 
 
     
-![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_27_1.png)
+![png](10_matrix_factorization_with_bias_files/10_matrix_factorization_with_bias_39_1.png)
     
 
 
@@ -556,11 +712,11 @@ np.round(avg_rating + np.dot(U, V.T) + user_bias[:, None] + item_bias[None, :], 
 
 
 
-    array([[5.  , 3.  , 0.84, 1.  ],
-           [4.  , 2.19, 2.61, 1.  ],
-           [1.  , 1.  , 8.7 , 5.  ],
-           [1.  , 0.95, 2.75, 4.  ],
-           [1.21, 1.  , 5.  , 4.  ]])
+    array([[5.  , 3.  , 3.47, 1.  ],
+           [4.  , 1.82, 3.27, 1.  ],
+           [1.  , 1.  , 1.18, 5.  ],
+           [1.  , 1.17, 0.4 , 4.  ],
+           [3.42, 1.  , 5.  , 4.  ]])
 
 
 
