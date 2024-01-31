@@ -58,8 +58,8 @@ K = min(R.shape) - 1  # Latent factor size
 
 # Initialize the U, V with random values.
 # We will learn the values by training.
-U = np.random.uniform(0, 1, (n_user, K))
-V = np.random.uniform(0, 1, (n_item, K))
+U = np.random.uniform(0, 0.1, (n_user, K))
+V = np.random.uniform(0, 0.1, (n_item, K))
 N = n_user * n_item
 
 
@@ -73,24 +73,38 @@ T = 500  # Epochs
 alpha = 0.1  # learning rate
 tol = 1e-3
 
+
+def mean_squared_error(U, V):
+    err = R - U @ V.T
+
+    return np.square(err[mask]).sum() + reg * (np.square(U).sum() + np.square(V).sum())
+
+
 for t in range(T):
     # Yes, we are looping it individually.
     # It makes sense since ratings matrix will usually be sparse - you can have thousands of movies,
     # but not all will be rated by users.
+    is_tol = False
     for i, j, r in zip(user_indices, item_indices, R[user_indices, item_indices]):
         r_hat = U[i] @ V[j].T
         err = r - r_hat
 
         # Instead of -2.0/N like the literature, we just include all the constants
-        U[i] += alpha * (err * V[j] - reg * U[i])
-        V[j] += alpha * (err * U[i] - reg * V[j])
-
+        du = alpha * (err * V[j] - reg * U[i])
+        dv = alpha * (err * U[i] - reg * V[j])
+        U[i] += du
+        V[j] += dv
+        if np.all(np.abs(np.concatenate([du, dv])) <= tol):
+            print("tolerance reached", t, mean_squared_error(U, V))
+            is_tol = True
+            break
+    if is_tol:
+        break
         # The loss should decrease over time.
-    err = R - U @ V.T
     # The mean square error is calculated by including only the known ratings.
     # We ignore the initial zero values, since they will be filled.
-    # loss = np.square(err[mask]).sum() + alpha * (np.square(U).sum() + np.square(V).sum())
-    loss = np.square(err[mask]).sum() / known_ratings
+    loss = mean_squared_error(U, V)
+    # loss = np.square(err[mask]).sum()
     losses.append(loss)
     if t % 100 == 0:
         print("Iter", t, loss)
@@ -103,8 +117,8 @@ for t in range(T):
         break
 ```
 
-    Iter 0 4.2125004476733405
-    Terminate after 16 iterations 0.0009755685292567753
+    Iter 0 135.36476906791097
+    tolerance reached 22 0.912466474468429
 
 
 
@@ -149,11 +163,11 @@ R_hat = U @ V.T
 print(np.round(R_hat, 2))
 ```
 
-    [[4.96 2.94 4.36 1.  ]
-     [3.95 2.14 3.63 1.  ]
-     [1.03 0.95 3.63 4.98]
-     [1.   0.53 3.1  3.98]
-     [3.27 1.03 4.99 3.99]]
+    [[4.98 2.89 5.21 1.  ]
+     [3.94 2.29 4.29 1.  ]
+     [1.1  0.76 5.05 4.97]
+     [0.98 0.66 4.13 3.96]
+     [1.91 1.19 4.97 3.99]]
 
 
 ### Output
@@ -708,12 +722,6 @@ R = np.array(
 # Get the number of users and items
 num_users, num_items = R.shape
 
-# Get the indices of non-zero entries
-user_ids, item_ids = np.nonzero(R)
-
-# Get the corresponding ratings
-ratings = R[user_ids, item_ids]
-
 # Define the embedding dimension
 embedding_dim = min(R.shape) - 1
 
@@ -722,40 +730,49 @@ U = tf.Variable(tf.random.uniform((num_users, embedding_dim)))
 V = tf.Variable(tf.random.uniform((num_items, embedding_dim)))
 
 # Define the learning rate
-lr = 0.1
+lr = 0.01
 
 # Define the number of epochs
 epochs = 500
-
+trainable_weights = [U, V]
 # Define the optimizer
 optimizer = tf.optimizers.SGD(lr)
+tol = 1e-3
+
+# Define the loss function
+def mse_loss(U, V, R):
+    R_hat = tf.matmul(U, V, transpose_b=True)
+    # return tf.keras.metrics.mean_squared_error(R, R_hat)
+    non_zero_mask = tf.math.not_equal(R, 0)
+    loss = tf.reduce_sum(tf.square(R - R_hat) * tf.cast(non_zero_mask, tf.float32))
+    return loss / known_ratings
+
 
 # Run the optimization
 for epoch in range(epochs):
     with tf.GradientTape() as tape:
         # Compute the dot product between the user and item embeddings
-        prediction = tf.reduce_sum(
-            tf.gather(U, user_ids) * tf.gather(V, item_ids), axis=1
-        )
-
-        # Compute the mean squared error loss
-        loss = tf.reduce_mean((ratings - prediction) ** 2)
+        R_hat = tf.matmul(U, V, transpose_b=True)
+        non_zero_mask = tf.math.not_equal(R, 0)
+        # Compute the squared error loss
+        loss = tf.reduce_sum(tf.square(R - R_hat) * tf.cast(non_zero_mask, tf.float32))
 
     # Compute the gradients
-    grads = tape.gradient(loss, [U, V])
+    grads = tape.gradient(loss, trainable_weights)
 
     # Apply the gradients
-    optimizer.apply_gradients(zip(grads, [U, V]))
+    optimizer.apply_gradients(zip(grads, trainable_weights))
 
     if epoch % 100 == 0:
         print("Epoch", epoch, "Loss", loss.numpy())
+    if loss.numpy() < tol:
+        print("Terminate", epoch, "Loss", loss.numpy())
+        break
 ```
 
-    Epoch 0 Loss 5.7831674
-    Epoch 100 Loss 0.009948074
-    Epoch 200 Loss 6.8908565e-05
-    Epoch 300 Loss 3.1928224e-07
-    Epoch 400 Loss 1.4373435e-09
+    Epoch 0 Loss 85.9884
+    Epoch 100 Loss 0.024117146
+    Terminate 134 Loss 0.0009415267
 
 
 
@@ -766,11 +783,11 @@ np.round(U.numpy() @ V.numpy().T, 2)
 
 
 
-    array([[5.  , 3.  , 4.85, 1.  ],
-           [4.  , 2.15, 4.13, 1.  ],
-           [1.  , 1.  , 4.1 , 5.  ],
-           [1.  , 0.5 , 3.64, 4.  ],
-           [2.44, 1.  , 5.  , 4.  ]], dtype=float32)
+    array([[5.  , 2.99, 4.81, 1.  ],
+           [4.  , 1.38, 3.89, 1.  ],
+           [1.01, 0.98, 2.91, 5.  ],
+           [1.  , 0.76, 2.49, 4.  ],
+           [3.9 , 1.02, 5.  , 4.  ]], dtype=float32)
 
 
 
@@ -818,7 +835,7 @@ for t in range(T):
     U += alpha * (err @ V - reg * U)
     V += alpha * (err.T @ U - reg * V)
 
-    loss = np.square(err[mask]).sum() / known_ratings
+    loss = np.square(err[mask]).sum() + reg * (np.square(U).sum() + np.square(V).sum())
     losses.append(loss)
     if t % 100 == 0:
         print("Iter", t, loss)
@@ -828,11 +845,11 @@ for t in range(T):
         break
 ```
 
-    Iter 0 7.54687845562033
-    Iter 100 0.10489907505360843
-    Iter 200 0.10490434157892338
-    Iter 300 0.10490675052631726
-    Iter 400 0.1049078458150461
+    Iter 0 79.46377518680883
+    Iter 100 2.1302814842026647
+    Iter 200 2.126179860313547
+    Iter 300 2.1243266960100167
+    Iter 400 2.123492346880653
 
 
 
@@ -853,5 +870,16 @@ np.round(U @ V.T, 2)
 
 
 ```python
-
+R
 ```
+
+
+
+
+    array([[5., 3., 0., 1.],
+           [4., 0., 0., 1.],
+           [1., 1., 0., 5.],
+           [1., 0., 0., 4.],
+           [0., 1., 5., 4.]])
+
+
