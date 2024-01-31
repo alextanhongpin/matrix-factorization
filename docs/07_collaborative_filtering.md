@@ -2,6 +2,8 @@
 
 In collaborative filtering, we observe similar users or items when making predictions on the **ratings**.
 
+- https://www.ethanrosenthal.com/2015/11/02/intro-to-collaborative-filtering/
+
 
 
 ```python
