@@ -69,6 +69,13 @@ U - user feature matrix
 Sigma - weights diagonal
 Vt - item feature matrix
 
+
+## Questions
+
+how to scale collaborative filtering/matrix factorisation in production for large number of users?
+
+how to update them real-time or close to real-time?
+
 ## References
 
 - https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.NMF.html
